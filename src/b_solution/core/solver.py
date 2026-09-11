@@ -1,9 +1,11 @@
 """Online simulated robot policy. It receives protocol results, never source truth."""
 from dataclasses import dataclass, field
 import math
+import time
 import numpy as np
 from .geometry import (DELTA_DEG, unit, outer_disk, observe, minimum_circle,
                        clip_all, safe_second_point)
+from .planning import optical_pieces, excluded, order_points, route_length, reception_probabilities
 
 
 def coverage_sites(mixed=False, lattice_step=950.):
@@ -32,6 +34,15 @@ class Target:
     observations: list = field(default_factory=list)
     tried: list = field(default_factory=list)
     cleared: bool = False
+    negative: list = field(default_factory=list)
+    exclusions: list = field(default_factory=list)
+    no_signal_streak: int = 0
+    _circle: object = field(default=None, init=False, repr=False)
+
+    def circle(self):
+        if self._circle is None:
+            self._circle = minimum_circle(self.poly)
+        return self._circle
 
     def assimilate(self, position, result):
         if result['measure_result'] == 'direction':
@@ -42,20 +53,23 @@ class Target:
                 # physical error automatically. A protocol/model issue needs review.
                 raise RuntimeError(f'Empty feasible set on channel {self.channel}')
             self.poly = new_poly
+            self._circle = None
             self.observations.append((np.asarray(position).copy(), theta))
 
 
 class Solver:
-    def __init__(self, session, mixed=False, improved=True, lattice_step=950.):
+    def __init__(self, session, mixed=False, improved=True, lattice_step=950., optimized=True):
         self.session = session
         self.mixed = mixed
         self.improved = improved
+        self.optimized = improved and optimized
         self.sites = coverage_sites(mixed, lattice_step)
         self.targets = {}
         self.cleared = set()
         self.visited = []
         self.fallbacks = 0
         self.completion_reason = 'not_started'
+        self.pending = []
 
     def clear_at(self, target, point):
         result = self.session.action('/clear', point, target.channel)
@@ -63,11 +77,19 @@ class Solver:
             target.cleared = True
             self.cleared.add(target.channel)
             return True
+        target.exclusions.append((np.asarray(point).copy(), 20.))
         return False
 
     def measure(self, target, point):
         target.tried.append(np.asarray(point).copy())
         result = self.session.action('/measure', point, target.channel)
+        if result['measure_result'] == 'no_signal':
+            target.negative.append(np.asarray(point).copy())
+            target.no_signal_streak += 1
+            if not self.mixed:
+                target.exclusions.append((np.asarray(point).copy(), 1000.))
+        else:
+            target.no_signal_streak = 0
         if result['measure_result'] == 'near':
             if not self.clear_at(target, point):
                 raise RuntimeError('near followed by failed clear: simulator/model inconsistency.')
@@ -76,7 +98,9 @@ class Solver:
         return result
 
     def next_point(self, target, attempt):
-        c, r = minimum_circle(target.poly)
+        if self.optimized:
+            return self.planned_measurement(target, attempt)[0]
+        c, r = target.circle()
         s, theta = target.observations[0]
         v = unit(theta + 90)
         if not self.improved:
@@ -112,6 +136,134 @@ class Solver:
                 worst = max(worst, rr)
             return np.linalg.norm(q - self.session.position) / 5 + 5 + 2 * worst / 5
         return min(candidates, key=score)
+
+    def planned_measurement(self, target, attempt):
+        """Bounded noisy lookahead, including an estimated no-signal branch."""
+        c, r = target.circle()
+        s, theta = target.observations[-1]
+        scale = min(180., max(30., .3 * r))
+        candidates = [c] + [c + scale * unit(theta + k * 45) for k in range(8)]
+        if self.mixed:
+            # Approach from the side on which reception has actually occurred.
+            approach = s - c
+            length = np.linalg.norm(approach)
+            if length > 1e-8:
+                direction = approach / length
+                side = np.array([-direction[1], direction[0]])
+                candidates += [c + scale * direction + offset * scale * side for offset in (-.5, 0, .5)]
+                # A short baseline beside a proven receiving point can avoid
+                # crossing the unknown emission boundary on the way to c.
+                if target.no_signal_streak:
+                    candidates += [s + offset * side for offset in (-150., -75., 75., 150.)]
+                    candidates.append((s + c) / 2)
+        candidates = [q for q in candidates if not any(np.linalg.norm(q - p) < 2 for p in target.tried)]
+        if not self.mixed and len(target.observations) == 1:
+            safe = [q for q in candidates if safe_second_point(q, s, theta)]
+            if safe:
+                candidates = safe
+        if not candidates:
+            candidates = [c + scale * unit(theta + attempt * 137.5)]
+        p = target.poly
+        indices = np.linspace(0, len(p) - 1, min(6, len(p))).astype(int)
+        samples = np.vstack([p[indices], p.mean(axis=0)])
+        samples = np.array([g for g in samples if not any(np.linalg.norm(g - q) < radius - 1e-6
+                            for q, radius in target.exclusions)]).reshape(-1, 2)
+        if not len(samples):
+            samples = p.mean(axis=0).reshape(1, 2)
+        chances = np.array([reception_probabilities(target, g, candidates, self.mixed) for g in samples])
+        fallback_cost = 3 * max(1., 2 * r / 35) + 2 * r / 5
+        def score(q, index):
+            costs = []
+            for sample_index, g in enumerate(samples):
+                chance = chances[sample_index, index]
+                if np.linalg.norm(g - q) <= 5:
+                    remaining = 5.
+                else:
+                    bearing = math.degrees(math.atan2(g[1] - q[1], g[0] - q[0]))
+                    radii = []
+                    for error in (-1., 0., 1.):
+                        region = observe(p, q, round((bearing + error) % 360, 2) % 360)
+                        if len(region):
+                            radii.append(minimum_circle(region)[1])
+                    rr = max(radii, default=r)
+                    remaining = 5 + 2 * rr / 5 + (5 if rr > 19.75 else 0)
+                costs.append(chance * remaining + (1 - chance) * fallback_cost)
+            return (np.linalg.norm(q - self.session.position) / 5 + 5
+                    + int(self.session.channel != target.channel)
+                    + .7 * float(np.mean(costs)) + .3 * max(costs))
+        scores = [score(q, i) for i, q in enumerate(candidates)]
+        k = int(np.argmin(scores))
+        return candidates[k], scores[k]
+
+    def cover_plan(self, target):
+        pieces = optical_pieces(target.poly, target.exclusions)
+        order = order_points(self.session.position, [c for c, _ in pieces])
+        return [pieces[i] for i in order]
+
+    def share_measurement(self, point):
+        """Exploit an existing stop for up to two useful pending channels."""
+        choices = []
+        for target in self.pending:
+            if target.cleared:
+                continue
+            c, r = target.circle()
+            if r <= 19.75 or any(np.linalg.norm(point - p) < 2 for p in target.tried):
+                continue
+            if np.max(np.linalg.norm(target.poly - point, axis=1)) > 1000:
+                continue
+            chance = reception_probabilities(target, c, [point], self.mixed)[0]
+            if chance < .8:
+                continue
+            bearing = math.degrees(math.atan2(c[1] - point[1], c[0] - point[0]))
+            region = observe(target.poly, point, bearing)
+            if not len(region):
+                continue
+            rr = minimum_circle(region)[1]
+            if rr < min(.6 * r, 40.):
+                choices.append((r - rr, target))
+        for _, target in sorted(choices, key=lambda x: -x[0])[:2]:
+            self.measure(target, point)
+            # near clears at this same point, so shared stops do not add travel.
+
+    def adaptive_cover(self, target, pieces=None):
+        self.fallbacks += 1
+        pieces = self.cover_plan(target) if pieces is None else pieces
+        for c, poly in pieces:
+            if excluded(poly, target.exclusions):
+                continue
+            if self.clear_at(target, c):
+                return
+        raise RuntimeError('Exhausted a certified adaptive cover without success.')
+
+    def adaptive_localize(self, target):
+        opportunistic = False
+        for attempt in range(10):
+            if target.cleared:
+                return
+            c, r = target.circle()
+            if r <= 19.75:
+                if not self.clear_at(target, c):
+                    raise RuntimeError('Certified clear failed: geometry/protocol inconsistency.')
+                return
+            if (r <= 40 and not opportunistic and np.linalg.norm(c - self.session.position) <= 80
+                    and not any(np.linalg.norm(c - p) < 2 for p, _ in target.exclusions)):
+                opportunistic = True
+                if self.clear_at(target, c):
+                    return
+            pieces = self.cover_plan(target)
+            # Full-route cost is a conservative action-cost upper bound.
+            cover_cost = route_length(self.session.position, [q for q, _ in pieces]) / 5 + 3 * len(pieces) + 2
+            if target.no_signal_streak >= 2 or self.session.deadline - time.monotonic() < 30:
+                self.adaptive_cover(target, pieces)
+                return
+            q, cost = self.planned_measurement(target, attempt)
+            if cover_cost <= cost:
+                self.adaptive_cover(target, pieces)
+                return
+            self.measure(target, q)
+            self.share_measurement(q)
+        if not target.cleared:
+            self.adaptive_cover(target)
 
     def optical_cover(self, target):
         """Finite 25 m grid in the first-bearing frame, independent of emission.
@@ -169,11 +321,13 @@ class Solver:
         raise RuntimeError('Exhausted a certified cover without success: stop and inspect logs.')
 
     def localize(self, target):
+        if self.optimized:
+            return self.adaptive_localize(target)
         opportunistic = False
         for attempt in range(6):
             if target.cleared:
                 return
-            c, r = minimum_circle(target.poly)
+            c, r = target.circle()
             if r <= 19.75:
                 if not self.clear_at(target, c):
                     raise RuntimeError('Certified clear failed: geometry/protocol inconsistency.')
@@ -195,7 +349,10 @@ class Solver:
             if len(self.cleared) == 16:
                 self.completion_reason = 'known_upper_bound_16'
                 break
-            if self.improved:
+            if self.optimized:
+                order = order_points(self.session.position, self.sites[remaining])
+                index = remaining[order[0]]
+            elif self.improved:
                 index = min(remaining, key=lambda k: np.linalg.norm(self.sites[k] - self.session.position))
             else:
                 index = remaining[0]
@@ -208,14 +365,20 @@ class Solver:
                 channels.insert(0, self.session.channel)
             pending = []
             for ch in channels:
-                t = self.targets.setdefault(ch, Target(ch))
+                if ch not in self.targets:
+                    self.targets[ch] = Target(ch)
+                t = self.targets[ch]
                 r = self.measure(t, q)
                 if r['measure_result'] == 'direction':
                     pending.append(t)
             self.visited.append(index)
+            self.pending = pending
             while pending:
-                if self.improved:
-                    target = min(pending, key=lambda t: np.linalg.norm(minimum_circle(t.poly)[0] - self.session.position))
+                if self.optimized:
+                    order = order_points(self.session.position, [t.circle()[0] for t in pending])
+                    target = pending.pop(order[0])
+                elif self.improved:
+                    target = min(pending, key=lambda t: np.linalg.norm(t.circle()[0] - self.session.position))
                     pending.remove(target)
                 else:
                     target = pending.pop(0)

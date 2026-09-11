@@ -1,5 +1,6 @@
 """Bearing-only geometry. All lengths are metres; public angles are degrees."""
 from itertools import combinations
+from functools import lru_cache
 import math
 import numpy as np
 from scipy.optimize import linprog
@@ -53,7 +54,17 @@ def clip(poly, normal, bound, tol=1e-8):
 
 
 def clip_all(poly, a, b):
-    for normal, bound in zip(a, b):
+    poly = np.asarray(poly, float).reshape(-1, 2)
+    if not len(poly):
+        return poly
+    a, b = np.asarray(a), np.asarray(b)
+    distances = a @ poly.T - b[:, None]
+    if np.any(np.all(distances > 1e-8, axis=1)):
+        return np.empty((0, 2))
+    # Constraints already satisfied by every original vertex remain satisfied
+    # by every subsequent convex subset. Skip them in a single NumPy operation.
+    active = np.any(distances > 1e-8, axis=1)
+    for normal, bound in zip(a[active], b[active]):
         poly = clip(poly, normal, bound)
         if not len(poly):
             break
@@ -67,9 +78,16 @@ def outer_disk(center, radius, sides=64):
 
 
 def disk_halfplanes(center, radius, sides=64):
+    a = disk_normals(sides)
+    return a, radius + a @ np.asarray(center)
+
+
+@lru_cache(maxsize=8)
+def disk_normals(sides):
     angles = (np.arange(sides) + .5) * 2 * np.pi / sides
     a = np.c_[np.cos(angles), np.sin(angles)]
-    return a, radius + a @ np.asarray(center)
+    a.setflags(write=False)
+    return a
 
 
 def observe(poly, position, bearing_deg, delta_deg=DELTA_DEG):
@@ -172,7 +190,7 @@ def diameter_calipers(poly):
     return math.sqrt(best), pair
 
 
-def minimum_circle(poly):
+def minimum_circle_reference(poly):
     """Small-polygon MEC by all 2/3 support points, independently auditable.
 
     For this problem bearing intersections normally have few vertices. This
@@ -201,6 +219,50 @@ def minimum_circle(poly):
         c = p[i] + np.linalg.solve(mat, np.sum(q[1:] ** 2, axis=1))
         consider(c)
     return best_c, best_r
+
+
+def minimum_circle(poly):
+    """Incremental enclosing circle, with deterministic local shuffling.
+
+    Final vertex verification always gives a conservative radius. The exhaustive
+    reference remains available for numerical degeneracies and independent tests.
+    """
+    points = np.asarray(poly, float).reshape(-1, 2)
+    if not len(points):
+        raise ValueError('Empty feasible set: check units, wrapping and data.')
+    if not np.all(np.isfinite(points)):
+        raise ValueError('Non-finite circle input.')
+    if len(points) <= 2:
+        c = points.mean(axis=0)
+        return c, float(np.linalg.norm(points - c, axis=1).max())
+    p = points[np.random.default_rng(0).permutation(len(points))]
+    c, r2 = p[0].copy(), 0.
+    for i, a in enumerate(p):
+        if float((a - c) @ (a - c)) <= r2 + 1e-9:
+            continue
+        c, r2 = a.copy(), 0.
+        for j in range(i):
+            b = p[j]
+            if float((b - c) @ (b - c)) <= r2 + 1e-9:
+                continue
+            c = (a + b) / 2
+            r2 = float((a - c) @ (a - c))
+            for k in range(j):
+                d = p[k]
+                if float((d - c) @ (d - c)) <= r2 + 1e-9:
+                    continue
+                u, v = b - a, d - a
+                determinant = cross(u, v)
+                if abs(determinant) <= 1e-12 * max(1., np.linalg.norm(u) * np.linalg.norm(v)):
+                    return minimum_circle_reference(points)
+                uu, vv = float(u @ u), float(v @ v)
+                c = a + np.array([v[1] * uu - u[1] * vv,
+                                   u[0] * vv - v[0] * uu]) / (2 * determinant)
+                r2 = float((a - c) @ (a - c))
+    radius = float(np.linalg.norm(points - c, axis=1).max())
+    if not np.isfinite(radius) or radius > math.sqrt(r2) + 1e-5:
+        return minimum_circle_reference(points)
+    return c, radius
 
 
 def safe_second_point(point, first_position, first_bearing, delta_deg=DELTA_DEG):

@@ -13,6 +13,7 @@ def main():
     parser.add_argument('--question', type=int, choices=[3, 4], default=3)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--baseline', action='store_true')
+    parser.add_argument('--previous', action='store_true', help='Use the previous improved policy for comparisons')
     parser.add_argument('--output', default='outputs/runs')
     parser.add_argument('--connect', action='store_true', help='Connect to the locally running official simulator')
     parser.add_argument('--team-id', default='')
@@ -20,6 +21,8 @@ def main():
     parser.add_argument('--session-kind', choices=['practice', 'formal'])
     parser.add_argument('--ack-session-start', action='store_true', help='You checked the UI and authorize entering this active session')
     args = parser.parse_args()
+    if args.baseline and args.previous:
+        parser.error('--baseline and --previous are mutually exclusive')
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     if args.connect:
@@ -35,10 +38,11 @@ def main():
         transport = OfflineSimulator(args.seed, mixed=args.question == 4)
         name = f'local_q{args.question}_seed{args.seed}_{time.time_ns()}'
         session = Session(transport, log_path=output / (name + '.jsonl'))
-    solver = Solver(session, mixed=args.question == 4, improved=not args.baseline)
+    solver = Solver(session, mixed=args.question == 4, improved=not args.baseline, optimized=not args.previous)
     start = time.perf_counter()
     try:
         result = solver.run()
+        result['policy'] = 'baseline' if args.baseline else ('improved' if args.previous else 'optimized')
         result['client_wall_time_s'] = time.perf_counter() - start
         result['result_origin'] = 'official_interface_unverified_ui_mode' if args.connect else 'independent_local_emulator'
         if not args.connect:
