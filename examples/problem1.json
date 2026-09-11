@@ -1,0 +1,19 @@
+{
+  "observations": [
+    {
+      "position": [
+        -400,
+        0
+      ],
+      "bearing_deg": 30
+    },
+    {
+      "position": [
+        400,
+        0
+      ],
+      "bearing_deg": 150
+    }
+  ],
+  "delta_deg": 1
+}
