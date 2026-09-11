@@ -1,9 +1,9 @@
 from dataclasses import replace
 import pytest
-from common.client import Client
-from common.config import Config
-from experiments.simulator import random_scene,Simulator,Source
-from solvers import problem3,problem4
+from legacy_solution.common.client import Client
+from legacy_solution.common.config import Config
+from legacy_solution.experiments.simulator import random_scene,Simulator,Source
+from legacy_solution.solvers import problem3,problem4
 
 @pytest.mark.parametrize("problem",[3,4])
 @pytest.mark.parametrize("count",[10,11,16])

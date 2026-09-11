@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 import pytest
-from experiments.summarize import summarize
-from common.logging_io import write_json
+from legacy_solution.experiments.summarize import summarize
+from legacy_solution.common.logging_io import write_json
 
 def test_formal_missing_is_not_filled_with_offline(tmp_path):
     summary=tmp_path/"summary.json"

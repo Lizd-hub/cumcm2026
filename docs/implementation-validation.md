@@ -4,15 +4,15 @@
 
 ## 交付结构
 
-- 四问独立入口：src/solvers/problem1.py 至 problem4.py。
-- 九幅图独立入口：src/figures/fig01_*.py 至 fig09_*.py。
-- 共用层负责几何、候选选择、覆盖、频道状态、协议和日志；experiments 包负责离线场景、配对实验和结果汇总。
+- 主方案入口：src/b_solution/run.py、protocol.py、solver.py，版本 v0.2.0。
+- 旧版四问和九幅图代码：src/legacy_solution，版本 v0.1.0。
+- 旧版共用层负责几何、候选选择、覆盖、频道状态、协议和日志；legacy_solution.experiments 包负责旧版离线场景、配对实验和结果汇总。
 - 每图输出 PDF、可编辑文字 SVG、300 dpi PNG；原始数据和每次实验参数保存在 outputs。
-- 官方 HTTP 入口已实现，协议通过模拟传输和 HTTP 序列化单元测试验证；尚无官方网络联调证据。
+- 主方案官方 HTTP 入口已实现，协议通过本地官方接口契约服务器端到端测试和离线模拟传输测试验证；尚无真实官方网络联调证据。
 
 ## 自动测试
 
-`python -m pytest -q`：**50 passed**。
+`python -m pytest -q`：**51 passed, 1 skipped**；其中 skipped 为未配置真实模拟器地址和队号的可选官方冒烟测试。
 
 覆盖空集、无界、点、线段、跨零角、近乎平行、最小包围圆独立枚举核验、外接圆盘保守性、圆周及朝外定向源覆盖、光学兜底、199 秒附件计时、相同请求幂等、响应丢失后重试、拒绝响应状态保持、不确定动作停止、near 与清除、固定地点误差、10/11/16 个目标完整性、预算耗尽，以及离线结果禁止进入正式测试表。
 
@@ -33,7 +33,7 @@
 
 最终配置中现实收尾预留为 30 秒；评分剔除了已有 direction 观测不允许的 5 米内场景。此调整未改变这批样本的最终轨迹，但纠正了交会质量显示。离线固定哈希误差与随机位置是自建实验假设，不是官方误差场或目标分布。
 
-复现完整实验可运行 `python -m experiments.benchmark`；默认串行执行同样 20 个种子，虚拟结果确定，现实耗时会随硬件变化。逐次结果见 outputs/benchmark/summary.json，配对差值见 outputs/tables/paired_comparison.csv。
+复现旧版完整实验可运行 `python -m legacy_solution.experiments.benchmark`；默认串行执行同样 20 个种子，虚拟结果确定，现实耗时会随硬件变化。逐次结果见 outputs/benchmark/summary.json，配对差值见 outputs/tables/paired_comparison.csv。
 
 ## 图表检查
 
@@ -44,7 +44,7 @@
 - 已目视检查完整图和几何细节；轨迹星号表示成功清除位置，不表示已知的精确目标真值。
 - 理论图与实验图明确标注来源；正式测试表保留“缺少官方测试记录”，没有填入离线成绩。
 
-外部单文件源码检查器不会跟随导入，因而在每个 fig 模块中报告未发现字体、可编辑文本和导出配置。这些设置集中在 figures/style.py，符合共用样式的模块设计；未为迎合扫描器复制九份配置。原始静态报告保留在 outputs/qa/*.source.json。相应要求通过实际 PDF 字号与裁切、SVG 文本、PNG 分辨率检查验证，核验脚本为 `python -m figures.audit`。静态源码扫描本身不能标为全通过。
+外部单文件源码检查器不会跟随导入，因而在每个 fig 模块中报告未发现字体、可编辑文本和导出配置。这些设置集中在 legacy_solution/figures/style.py，符合共用样式的模块设计；未为迎合扫描器复制九份配置。原始静态报告保留在 outputs/qa/*.source.json。相应要求通过实际 PDF 字号与裁切、SVG 文本、PNG 分辨率检查验证，核验脚本为 `python -m legacy_solution.figures.audit`。静态源码扫描本身不能标为全通过。
 
 ## 使用边界
 

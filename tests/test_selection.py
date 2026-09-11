@@ -1,8 +1,8 @@
 import numpy as np
-from common.models import Observation,ChannelState
-from common.config import Config
-from common.geometry import disk_polygon,update_outer
-from common.localization import choose_next
+from legacy_solution.common.models import Observation,ChannelState
+from legacy_solution.common.config import Config
+from legacy_solution.common.geometry import disk_polygon,update_outer
+from legacy_solution.common.localization import choose_next
 
 def test_guarantee_and_determinism():
     config=Config(scenario_limit=8,candidate_shortlist=2)

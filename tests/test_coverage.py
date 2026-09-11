@@ -1,7 +1,7 @@
 import numpy as np
-from common.coverage import coverage_grid,optical_grid
-from common.models import Observation
-from common.geometry import unit
+from legacy_solution.common.coverage import coverage_grid,optical_grid
+from legacy_solution.common.models import Observation
+from legacy_solution.common.geometry import unit
 
 def test_continuous_bound_constants():
     assert 600*np.sqrt(2)<1000

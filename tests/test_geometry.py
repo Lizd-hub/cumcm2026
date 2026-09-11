@@ -2,11 +2,11 @@ import itertools
 import math
 import numpy as np
 import pytest
-from common.geometry import (halfplane_region,enclosing_circle,circle_three,bearing_halfplanes,
+from legacy_solution.common.geometry import (halfplane_region,enclosing_circle,circle_three,bearing_halfplanes,
                              disk_polygon,update_outer,disk_halfplanes)
-from common.config import Config
-from common.models import Observation
-from solvers.problem1 import solve
+from legacy_solution.common.config import Config
+from legacy_solution.common.models import Observation
+from legacy_solution.solvers.problem1 import solve
 
 def test_region_statuses():
     assert halfplane_region([[1,0],[-1,0]],[0,-1]).status=="empty"

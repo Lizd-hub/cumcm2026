@@ -1,7 +1,7 @@
 import copy
 import pytest
-from common.client import Client,ProtocolError,UncertainAction
-from experiments.simulator import Simulator,Source
+from legacy_solution.common.client import Client,ProtocolError,UncertainAction
+from legacy_solution.experiments.simulator import Simulator,Source
 
 def test_annex_199_and_clear_does_not_switch():
     client=Client(Simulator([]))
@@ -79,7 +79,7 @@ def test_uncertain_stops_future_actions(monkeypatch):
             if path=="/enter":
                 return simulator.send(path,payload,timeout)
             raise ConnectionError("offline")
-    monkeypatch.setattr("common.client.time.sleep",lambda _:None)
+    monkeypatch.setattr("legacy_solution.common.client.time.sleep",lambda _:None)
     client=Client(Drop())
     client.request("/enter")
     with pytest.raises(UncertainAction):
@@ -97,7 +97,7 @@ def test_invalid_channel(channel):
 
 def test_http_transport_serializes_protocol(monkeypatch):
     import json
-    from common.client import HttpTransport
+    from legacy_solution.common.client import HttpTransport
     captured = {}
     class Response:
         status = 200
@@ -111,7 +111,7 @@ def test_http_transport_serializes_protocol(monkeypatch):
         captured["request"] = request
         captured["timeout"] = timeout
         return Response()
-    monkeypatch.setattr("common.client.urlopen",fake_open)
+    monkeypatch.setattr("legacy_solution.common.client.urlopen",fake_open)
     payload = {"arena_id":"default","robot_id":"example","request_id":"1"}
     status,body = HttpTransport().send("/enter",payload,3)
     assert status == 200 and body["accepted"]
