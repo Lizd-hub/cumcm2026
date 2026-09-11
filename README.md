@@ -1,6 +1,6 @@
 # 2026 数模 B 题：无线电干扰源定位与清除
 
-主解题代码位于 `src/b_solution`，版本为 `v0.2.0`；原始方案完整保存在 `src/legacy_solution`，版本为 `v0.1.0`，用于复现和对照。主方案默认运行独立离线模拟器，官方测试须由用户在模拟器界面启动。
+主解题代码位于 `src/b_solution`，版本为 `v0.3.0`；原始方案完整保存在 `src/legacy_solution`，版本为 `v0.1.0`，用于复现和对照。主方案默认运行独立离线模拟器，官方测试须由用户在模拟器界面启动。分层和依赖方向见 `src/b_solution/ARCHITECTURE.md`。
 
 ## 安装
 
@@ -8,7 +8,7 @@ Python 3.11 或以上，在项目根目录执行（Windows PowerShell）：
 
 ```powershell
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[test]"
+.venv/Scripts/python -m pip install -e ".[dev]"
 .venv/Scripts/python -m pytest -q
 ```
 
@@ -17,8 +17,8 @@ Linux/macOS 将解释器路径换为 `.venv/bin/python`。绘图需要 Microsoft
 ## 四问独立运行
 
 ```powershell
-.venv/Scripts/python -m b_solution.run --question 3 --seed 20260910
-.venv/Scripts/python -m b_solution.run --question 4 --seed 20260910
+.venv/Scripts/python -m b_solution run --question 3 --seed 20260910 --output outputs/runs
+.venv/Scripts/python -m b_solution run --question 4 --seed 20260910 --output outputs/runs
 
 # 旧版问题一、二接口（仅用于复现 v0.1.0）
 .venv/Scripts/python -m legacy_solution.solvers.problem1 --input examples/problem1.json
@@ -32,9 +32,8 @@ Linux/macOS 将解释器路径换为 `.venv/bin/python`。绘图需要 Microsoft
 Python 调用接口：
 
 ```python
-from b_solution.offline_simulator import OfflineSimulator
-from b_solution.protocol import Session
-from b_solution.solver import Solver
+from b_solution.infrastructure import OfflineSimulator, Session
+from b_solution.core import Solver
 
 session = Session(OfflineSimulator(20260910), robot_id="offline")
 result = Solver(session, mixed=False).run()
@@ -47,8 +46,8 @@ result = Solver(session, mixed=False).run()
 先在官方模拟器中登录，选择正确问题和演练/正式模式，等待界面显示接口已就绪，再运行：
 
 ```powershell
-.venv/Scripts/python -m b_solution.run --question 3 --connect --team-id "实际参赛队号" --session-kind practice --ack-session-start --output outputs/official
-.venv/Scripts/python -m b_solution.run --question 4 --connect --team-id "实际参赛队号" --session-kind practice --ack-session-start --output outputs/official
+.venv/Scripts/python -m b_solution run --question 3 --connect --team-id "实际参赛队号" --session-kind practice --ack-session-start --output outputs/official
+.venv/Scripts/python -m b_solution run --question 4 --connect --team-id "实际参赛队号" --session-kind practice --ack-session-start --output outputs/official
 ```
 
 地址默认 `http://127.0.0.1:32026`，可用 `--base-url` 修改。`--session-kind` 只用于命名运行日志并提醒当前 UI 选择，不控制模拟器模式。正式模式需在界面选择，代码不会启动正式测试，也不会下载、解析或修改官方加密日志。
@@ -81,7 +80,7 @@ HTTP 原始日志即时追加至 `.raw.jsonl`，已有文件会拒绝覆盖，�
 
 ## 两种方案统一环境比较
 
-`legacy_solution` 是保存下来的 v0.1.0 旧方案。下面的命令使用同一个场景生成器、同一组目标真值、同一误差场和同一动作计费规则，比较 v0.2.0 主方案与旧方案；默认同时保留两套方案各自的 active/baseline 变体：
+`legacy_solution` 是保存下来的 v0.1.0 旧方案。下面的命令使用同一个场景生成器、同一组目标真值、同一误差场和同一动作计费规则，比较 v0.3.0 主方案与旧方案；默认同时保留两套方案各自的 active/baseline 变体：
 
 ```powershell
 .venv/Scripts/python -m legacy_solution.experiments.compare_solutions --trials 10

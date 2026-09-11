@@ -1,4 +1,4 @@
-# 2026 B 题完整建模与复现说明（v0.2.0）
+# 2026 B 题完整建模与复现说明（v0.3.0）
 
 本包对应上传题目《无线电干扰源的快速自动定位与清除》。数值结果来自独立编写的本地模拟器，不是官方演练或正式测试。策略只读取四个接口的反馈，不读取官方隐藏源数据。本包只面向题设模拟环境。
 
@@ -8,17 +8,17 @@
 
 ```bash
 python -m pip install -e ".[test]"
-python -m b_solution.validate
-python -m b_solution.run --question 3 --seed 0
-python -m b_solution.run --question 4 --seed 0
+python -m b_solution validate
+python -m b_solution run --question 3 --seed 0 --output outputs/runs
+python -m b_solution run --question 4 --seed 0 --output outputs/runs
 ```
 
-`--baseline` 切换基础策略。默认输出在当前目录的 `run_output` 下；可用 `--output` 指定绝对路径。路径含空格时请用引号包住。Windows 的 Python 代码路径推荐 `Path(r"D:\建模\B题")` 或 `Path("D:/建模/B题")`。不要把压缩包内部路径当作已经解压的文件路径。
+`--baseline` 切换基础策略。默认输出在项目目录的 `outputs/runs` 下；可用 `--output` 指定绝对路径。路径含空格时请用引号包住。Windows 的 Python 代码路径推荐 `Path(r"D:\建模\B题")` 或 `Path("D:/建模/B题")`。不要把压缩包内部路径当作已经解压的文件路径。
 
 ## 复现报告中的比较
 
 ```bash
-python -m b_solution.benchmark --cases 12 --output results_reproduced
+python -m b_solution benchmark --cases 12 --output outputs/benchmarks
 ```
 
 每问使用 12 个常规场景及 4 个联合压力场景，两种策略使用相同种子及相同场景参数，共 64 次运行。已有结果在 `results` 中。虚拟时间应在浮点容差内重复；真实运行时间随电脑而变化。JSON 中的 `case_sha256` 是自建场景参数摘要，绝不是官方案例编码。
@@ -32,7 +32,7 @@ python -m b_solution.benchmark --cases 12 --output results_reproduced
 3. 用自己的参赛队号替换下方示例。程序不接收登录密码。
 
 ```bash
-python -m b_solution.run --question 3 --connect --team-id YOUR_TEAM_ID --session-kind practice --ack-session-start
+python -m b_solution run --question 3 --connect --team-id YOUR_TEAM_ID --session-kind practice --ack-session-start --output outputs/official
 ```
 
 第四问改成 `--question 4`。API 本身不返回当前是演练还是正式模式，命令行标签不能替代界面检查。只有在充分演练且明确决定使用正式机会时，才由参赛者把 `--session-kind` 改为 `formal`；程序会进入当前已经启动的那一局。交付过程未连接官方模拟器、未登录、未消耗正式机会。
@@ -45,14 +45,12 @@ python -m b_solution.run --question 3 --connect --team-id YOUR_TEAM_ID --session
 
 | 文件 | 作用 |
 |---|---|
-| geometry.py | 半平面交会、空集与无界判别、旋转卡壳、最小包围圆、第二点接收候选区 |
-| solver.py | 第三问七点覆盖、第四问三角网格覆盖、滚动动作选择及有限光学覆盖 |
-| protocol.py | 四接口、串行通信、幂等重试和截止时间处理 |
-| offline_simulator.py | 独立本地仿真和事后评估，不能代表官方模拟器 |
-| run.py | 单次本地运行或由用户明确启动接口连接 |
-| benchmark.py | 成对比较两种策略并输出 JSON 结果 |
-| validate.py | 几何、覆盖、时间累计及协议状态的必要验证 |
-| preprocess_logs.py | 结构性缺失、无效值、重复请求和时间数据审计 |
+| core/geometry.py | 半平面交会、空集与无界判别、旋转卡壳、最小包围圆、第二点接收候选区 |
+| core/solver.py | 第三问七点覆盖、第四问三角网格覆盖、滚动动作选择及有限光学覆盖 |
+| infrastructure/protocol.py | 四接口、串行通信、幂等重试和截止时间处理 |
+| infrastructure/offline_simulator.py | 独立本地仿真和事后评估，不能代表官方模拟器 |
+| cli/ | 单次运行、基准实验、验证和日志预处理命令 |
+| reporting/ | 可选的绘图和 Word 报告构建工具 |
 | matlab/preprocess_jsonl.m | MATLAB 日志预处理对照代码，当前环境未执行 |
 | report.md | 中文讲解报告源稿，包含可编辑的 LaTeX 公式 |
 | results | 已运行的本地结果、场景示例及验证记录 |
@@ -61,14 +59,14 @@ python -m b_solution.run --question 3 --connect --team-id YOUR_TEAM_ID --session
 ## 数据预处理
 
 ```bash
-python -m b_solution.preprocess_logs "run_output/某次运行.jsonl" --output audit.json
+python -m b_solution preprocess "outputs/runs/某次运行.jsonl" --output outputs/runs/audit.json
 ```
 
 保留原日志。仅在统计视图中合并同一 request_id 的幂等返回；不同 request_id 的同地点重复动作仍产生时间费用，不能删掉。`near` 和 `no_signal` 分支不含示向度，这是协议规定，不是待均值填补的缺失数据。MATLAB 对照调用：
 
 ```matlab
 addpath('matlab');
-[T, audit] = preprocess_jsonl("D:/建模/B题/run_output/example.jsonl");
+[T, audit] = preprocess_jsonl("D:/建模/B题/outputs/runs/example.jsonl");
 ```
 
 MATLAB 对照需要 R2020b 或更高版本。主要求解器和实测验证在 Python 下完成。
@@ -79,4 +77,4 @@ MATLAB 对照需要 R2020b 或更高版本。主要求解器和实测验证在 P
 
 当前程序对 `no_signal` 保留历史正读数可行域，避免因未知方向而错误删点。联合位置和发射轴的集合估计可进一步利用负读数，但尚未实现。达到现实截止时间或收到矛盾反馈时程序输出失败记录，不能声称已清除所有目标。
 
-`make_figures.py` 和 `build_report.py` 是报告制作脚本；重新生成 Word 还需要 python-docx、PyMuPDF、Pillow 和适当的中文字体。`native_math.py` 生成原生可编辑的 Word 公式。这些不是运行定位算法的依赖。数学模型与模拟接口只需 requirements.txt 中的基础依赖。
+`reporting/make_figures.py` 和 `reporting/build_report.py` 是报告制作脚本；使用 `pip install -e ".[report]"` 安装 python-docx、PyMuPDF、Pillow、Matplotlib 等可选依赖。`reporting/native_math.py` 生成原生可编辑的 Word 公式。这些不是运行定位算法的依赖；基础依赖统一由项目根目录的 `pyproject.toml` 管理。

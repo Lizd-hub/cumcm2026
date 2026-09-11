@@ -1,7 +1,7 @@
 # 源代码布局
 
-主方案为 `b_solution`（`v0.2.0`），已从原根目录方案迁入此处；运行入口为
-`python -m b_solution.run`，官方模拟器连接通过 `--connect` 显式开启。
+主方案为 `b_solution`（`v0.3.0`），已按 core、infrastructure、cli、reporting 分层；运行入口为
+`python -m b_solution run`，官方模拟器连接通过 `--connect` 显式开启。
 
 原先的 `common`、`solvers`、`experiments` 和 `figures` 已整体迁入
 `legacy_solution`（`v0.1.0`），只用于旧版复现、图表和公平对照，不再作为默认主方案。
