@@ -1,0 +1,54 @@
+[
+  {
+    "question": 3,
+    "scenario": "random_smooth",
+    "raw_records": 102,
+    "unique_accepted_actions": 102,
+    "rejected_actions": 0,
+    "idempotent_duplicates": 0,
+    "direction": 36,
+    "near": 0,
+    "no_signal": 48,
+    "structurally_absent_bearings": 48,
+    "invalid_records": 0
+  },
+  {
+    "question": 3,
+    "scenario": "minrange_extreme_boundary",
+    "raw_records": 141,
+    "unique_accepted_actions": 141,
+    "rejected_actions": 0,
+    "idempotent_duplicates": 0,
+    "direction": 38,
+    "near": 0,
+    "no_signal": 83,
+    "structurally_absent_bearings": 83,
+    "invalid_records": 0
+  },
+  {
+    "question": 4,
+    "scenario": "random_smooth",
+    "raw_records": 566,
+    "unique_accepted_actions": 566,
+    "rejected_actions": 0,
+    "idempotent_duplicates": 0,
+    "direction": 30,
+    "near": 0,
+    "no_signal": 344,
+    "structurally_absent_bearings": 344,
+    "invalid_records": 0
+  },
+  {
+    "question": 4,
+    "scenario": "minrange_extreme_boundary",
+    "raw_records": 825,
+    "unique_accepted_actions": 825,
+    "rejected_actions": 0,
+    "idempotent_duplicates": 0,
+    "direction": 25,
+    "near": 0,
+    "no_signal": 438,
+    "structurally_absent_bearings": 438,
+    "invalid_records": 0
+  }
+]

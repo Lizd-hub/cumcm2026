@@ -75,6 +75,16 @@ HTTP 原始日志即时追加至 `.raw.jsonl`，已有文件会拒绝覆盖，�
 
 默认使用 20260910—20260929 共 20 个种子，对问题三、四分别运行基线和主动定位，共 80 次。每组共享目标真值与误差场，失败案例仍保留。summary.json 保存每次结果；paired_comparison.csv 保存配对差值。现实运行时间随硬件与并发负载变化。
 
+## 两种方案统一环境比较
+
+`b_solution` 是独立的第二套实现。下面的命令使用同一个场景生成器、同一组目标真值、同一误差场和同一动作计费规则，分别驱动主方案与 `b_solution`；默认同时保留两套方案各自的 active/baseline 变体：
+
+```powershell
+.venv/Scripts/python -m experiments.compare_solutions --trials 10
+```
+
+结果写入 `outputs/shared_comparison/`，包括逐案 `raw_results.json/csv`、配对差值、汇总表和中文 `analysis.md`。`random` 为常规场景，`boundary` 为最小接收半径、边界源和定向源压力场景。该比较仍是离线实验，不是官方测试成绩。
+
 正式测试表默认输出缺失状态，绝不使用离线成绩填充。实际取得结果后，准备 JSON 数组并传入 `--formal-records`，每条包含 `problem`、`source: "official_formal"`、`case_code`、`cleared_count`、`virtual_time_s`、`real_time_s` 和 `log_filename`。程序不会核实人工输入的官方成绩，应由队员与原日志核对。
 
 ## 九幅独立论文图
