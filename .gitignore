@@ -12,3 +12,4 @@ __pycache__/
 
 outputs/*
 !outputs/README.md
+!outputs/official/

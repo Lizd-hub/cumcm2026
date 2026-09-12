@@ -1,0 +1,17 @@
+{
+  "cleared": 12,
+  "virtual_time_s": 4017.688375,
+  "average_time_s": 334.80736458333337,
+  "sites_visited": 7,
+  "sites_planned": 7,
+  "fallbacks": 0,
+  "completion_reason": "all_uncleared_channels_scanned_at_complete_cover",
+  "distance_m": 16858.44188499623,
+  "measurements": 99,
+  "switches": 91,
+  "clear_success": 12,
+  "clear_failed": 0,
+  "policy": "optimized",
+  "client_wall_time_s": 1.8673000999999658,
+  "result_origin": "official_interface_unverified_ui_mode"
+}
