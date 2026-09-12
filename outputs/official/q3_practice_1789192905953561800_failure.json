@@ -1,0 +1,7 @@
+{
+  "completed": false,
+  "error": "[WinError 10054] An existing connection was forcibly closed by the remote host",
+  "virtual_time_s": 0.0,
+  "cleared": 0,
+  "client_wall_time_s": 0.04883810000046651
+}
